@@ -3,6 +3,7 @@ const { default: makeWASocket, useMultiFileAuthState, DisconnectReason } = pkg;
 import pino from "pino";
 import gradient from "gradient-string";
 import chalk from "chalk";
+import chokidar from "chokidar";
 import handler from "./handler.js";
 
 const logo = `
@@ -11,68 +12,43 @@ const logo = `
 ╚██║    ██╔╝██║     ██████╔╝    ██████╔╝██║   ██║   ██║   
  ██║   ██╔╝ ██║     ██╔══██╗    ██╔══██╗██║   ██║   ██║   
  ██║   ██║  ███████╗██████╔╝    ██████╔╝╚██████╔╝   ██║   
- ╚═╝   ╚═╝  ╚══════╝╚═════╝     ╚═════╝  ╚═════╝    ╚═╝   
-`;
+ ╚═╝   ╚═╝  ╚══════╝╚═════╝     ╚═════╝  ╚═════╝    ╚═╝   `;
 
 async function startBot() {
-    // 1. Log Iniziale e Logo
     console.clear();
     console.log(gradient(["#00FFFF", "#0080FF", "#0040FF"])(logo));
     console.log(chalk.cyan("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"));
-    console.log(chalk.bold.white(` 🚀 Avvio Bot... | Creatore: github.com/jstgiugiu `));
+    console.log(chalk.bold.white(` 🚀 17lb ONLINE | Creatore: github.com/jstgiugiu `));
     console.log(chalk.cyan("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"));
 
-    console.log(chalk.yellow("[LOG]") + " Caricamento sessione...");
-    const { state, saveCreds } = await useMultiFileAuthState('session');
+    const watcher = chokidar.watch(['./plugins', './lib'], { ignored: /^\./, persistent: true, ignoreInitial: true });
+    watcher.on('add', path => console.warn(chalk.yellow(`[WATCHER] 🟢 Nuovo: ${path}`)));
+    watcher.on('change', path => console.warn(chalk.cyan(`[WATCHER] 🔄 Modificato: ${path}`)));
+    watcher.on('unlink', path => console.warn(chalk.red(`[WATCHER] 🗑️  Rimosso: ${path}`)));
 
-    console.log(chalk.yellow("[LOG]") + " Inizializzazione connessione @realvare/based...");
+    const { state, saveCreds } = await useMultiFileAuthState('session');
     const conn = makeWASocket({
         logger: pino({ level: 'silent' }),
         auth: state,
         printQRInTerminal: true,
-        browser: ["17lb", "Chrome", "3.0.0"]
+        browser: ["17lb", "Safari", "3.0.0"]
     });
 
-    // Salvataggio credenziali
-    conn.ev.on('creds.update', () => {
-        saveCreds();
-    });
-
-    // Gestione Messaggi
+    conn.ev.on('creds.update', saveCreds);
     conn.ev.on('messages.upsert', async (m) => {
         if (!m.messages || m.type !== 'notify') return;
-        await handler(conn, m);
+        try { await handler(conn, m); } catch (e) { console.error(chalk.red("[HANDLER ERROR]"), e); }
     });
 
-    // Log degli stati di connessione
     conn.ev.on('connection.update', (update) => {
         const { connection, lastDisconnect, qr } = update;
-
-        if (qr) {
-            console.log(chalk.magenta("[QR]") + " Scansiona il codice QR per connetterti.");
-        }
-
+        if (qr) console.log(chalk.magenta("[QR]") + " Scansiona ora.");
         if (connection === 'close') {
             const reason = lastDisconnect.error?.output?.statusCode;
-            console.log(chalk.red("[LOG]") + ` Connessione chiusa. Motivo: ${reason}`);
-            
-            if (reason !== DisconnectReason.loggedOut) {
-                console.log(chalk.green("[LOG]") + " Riconnessione in corso...");
-                startBot();
-            } else {
-                console.log(chalk.red("[LOG]") + " Sessione terminata. Elimina la cartella 'session' e riavvia.");
-            }
+            if (reason !== DisconnectReason.loggedOut) startBot();
         } else if (connection === 'open') {
-            console.log(chalk.green("\n[SUCCESS]") + chalk.bold(" Connessione stabilita con successo!"));
-            console.log(chalk.cyan("[INFO]") + ` Connesso come: ${conn.user.name || conn.user.id.split(':')[0]}`);
-            console.log(chalk.cyan("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"));
+            console.log(chalk.green("[SUCCESS]") + " Connesso come: " + conn.user.id.split(':')[0]);
         }
     });
-
-    return conn;
 }
-
-// Avvio con gestione errori globale
-startBot().catch(err => {
-    console.error(chalk.red("[CRITICAL ERROR]"), err);
-});
+startBot().catch(err => console.error(err));

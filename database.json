@@ -1,21 +1,30 @@
 {
   "groups": {
     "120363405451021746@g.us": {
-      "count": 4
+      "count": 69
     },
     "120363406984570097@g.us": {
-      "count": 9
+      "count": 12
     }
   },
   "users": {
     "17789072704@s.whatsapp.net": {
-      "count": 10
+      "count": 65
     },
     "393533869409@s.whatsapp.net": {
-      "count": 2
+      "count": 6
     },
     "393806931432@s.whatsapp.net": {
       "count": 1
+    },
+    "120363404366293858@newsletter": {
+      "count": 1
+    },
+    "null": {
+      "count": 1
+    },
+    "120363405451021746@g.us": {
+      "count": 8
     }
   }
 }

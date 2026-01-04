@@ -140,5 +140,5 @@ vite.config.ts.timestamp-*
 
 # bot session/database files + npm lock
 .package-lock.json
-.database.json
-.session
+database.json
+session/
