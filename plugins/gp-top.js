@@ -1,6 +1,9 @@
 export const command = ['topgp', 'topgruppi'];
+
 export async function exec(conn, msg, { jid, db }) {
+    // Filtra solo i gruppi (@g.us)
     let topG = Object.entries(db.groups)
+        .filter(([id]) => id.endsWith('@g.us')) 
         .sort((a, b) => b[1].count - a[1].count)
         .slice(0, 10);
 
@@ -15,5 +18,6 @@ export async function exec(conn, msg, { jid, db }) {
         }
         txt += `${i + 1}. ${groupName}\n╰┈➤ ${topG[i][1].count} messaggi\n`;
     }
+    
     await conn.sendMessage(jid, { text: txt }, { quoted: msg });
 }
