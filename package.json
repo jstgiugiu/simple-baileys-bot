@@ -12,6 +12,8 @@
   "dependencies": {
     "@realvare/based": "latest",
     "pino": "^8.19.0",
-    "qrcode-terminal": "^0.12.0"
+    "qrcode-terminal": "^0.12.0",
+    "chalk": "latest",
+    "gradient-string": "3.0.0"
   }
 }
