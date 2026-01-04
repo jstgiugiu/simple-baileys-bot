@@ -1,0 +1,17 @@
+{
+  "name": "17lb",
+  "version": "1.0.0",
+  "description": "WhatsApp Bot 17lb - Creator: github.com/jstgiugiu",
+  "main": "main.js",
+  "type": "module",
+  "scripts": {
+    "start": "node main.js"
+  },
+  "author": "jstgiugiu",
+  "license": "MIT",
+  "dependencies": {
+    "@realvare/based": "latest",
+    "pino": "^8.19.0",
+    "qrcode-terminal": "^0.12.0"
+  }
+}
