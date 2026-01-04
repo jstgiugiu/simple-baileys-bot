@@ -1,12 +1,14 @@
-export const command = ['profilo', 'profile'];
+export const command = ['usr-info', 'profilo', 'profile'];
 
 export async function exec(conn, msg, { jid, sender, db }) {
     const user = db.users[sender];
     const name = msg.pushName || "Utente";
     const count = user ? user.count : 0;
+    const userNumber = sender.split('@')[0];
 
-    // --- Calcolo Posizione in Classifica ---
+    // --- Calcolo Posizione ---
     const sortedUsers = Object.entries(db.users)
+        .filter(([id]) => id.endsWith('@s.whatsapp.net'))
         .sort((a, b) => b[1].count - a[1].count)
         .map(u => u[0]);
     const rank = sortedUsers.indexOf(sender) + 1;
@@ -16,27 +18,49 @@ export async function exec(conn, msg, { jid, sender, db }) {
     try {
         ppUrl = await conn.profilePictureUrl(sender, 'image');
     } catch {
-        ppUrl = 'https://ui-avatars.com/api/?name=' + name; // Fallback se non ha la foto
+        ppUrl = 'https://ui-avatars.com/api/?name=' + name;
     }
 
+    // --- fkontak DINAMICO (Prende i dati di chi scrive) ---
+    const fkontak = {
+        key: {
+            participant: sender, // L'utente che esegue
+            remoteJid: "status@broadcast",
+            fromMe: false,
+            id: "17lb-System"
+        },
+        message: {
+            contactMessage: {
+                vcard: `BEGIN:VCARD\nVERSION:3.0\nN:;${name};;;\nFN:${name}\nitem1.TEL;waid=${userNumber}:${userNumber}\nitem1.X-ABLabel:Ponsel\nEND:VCARD`
+            }
+        },
+        participant: sender
+    };
+
+    // --- Bottoni ---
     const buttons = [
         { buttonId: '/17', buttonText: { displayText: '📂 MENU' }, type: 1 },
         { buttonId: '/topusr', buttonText: { displayText: '🏆 TOP UTENTI' }, type: 1 }
     ];
 
+    // --- Messaggio Finale ---
     const buttonMessage = {
-        text: `👤 *PROFILO UTENTE*\n\n📊 *Messaggi:* ${count}\n🏆 *Posizione:* #${rank} su ${sortedUsers.length}\n\n_Usa i bottoni per navigare_`,
-        footer: '17lb System',
+        text: `👤 *INFO UTENTE*\n\n` +
+              `• *Nome:* ${name}\n` +
+              `• *Messaggi:* ${count}\n` +
+              `• *Posizione:* #${rank} / ${sortedUsers.length}`,
+        footer: '17lb bot',
         buttons: buttons,
-        headerType: 4, // Cambiato a 4 per supportare immagine nell'header se necessario
+        headerType: 1,
         contextInfo: {
             forwardingScore: 999,
             isForwarded: true,
+            mentions: [sender],
             quotedMessage: {
-                imageMessage: { // Usiamo imageMessage per simulare lo stato con la sua foto
+                imageMessage: {
                     url: ppUrl,
-                    caption: `Stato di ${name}`,
-                    jpegThumbnail: (await (await fetch(ppUrl)).arrayBuffer()) // Buffer reale della PP
+                    caption: `Profilo di ${name}`,
+                    jpegThumbnail: (await (await fetch(ppUrl)).arrayBuffer())
                 }
             },
             remoteJid: 'status@broadcast',
@@ -44,5 +68,5 @@ export async function exec(conn, msg, { jid, sender, db }) {
         }
     };
 
-    await conn.sendMessage(jid, buttonMessage, { quoted: msg });
+    await conn.sendMessage(jid, buttonMessage, { quoted: fkontak });
 }
