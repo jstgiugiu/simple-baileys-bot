@@ -5,6 +5,7 @@ export async function exec(conn, msg, { jid, sender, db, L }) {
     const name = msg.pushName || "Utente";
     const count = user ? user.count : 0;
     const userNumber = sender.split('@')[0];
+    const prefix = global.prefix
 
     const sortedUsers = Object.entries(db.users)
         .filter(([id]) => id.endsWith('@s.whatsapp.net'))
@@ -26,8 +27,8 @@ export async function exec(conn, msg, { jid, sender, db, L }) {
     };
 
     const buttons = [
-        { buttonId: '/17', buttonText: { displayText: L.menu_btn }, type: 1 },
-        { buttonId: '/topusr', buttonText: { displayText: L.top_btn }, type: 1 }
+        { buttonId: `${prefix}17`, buttonText: { displayText: L.menu_btn }, type: 1 },
+        { buttonId: `${prefix}topusr`, buttonText: { displayText: L.top_btn }, type: 1 }
     ];
 
     const buttonMessage = {

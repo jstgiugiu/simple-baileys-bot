@@ -1,21 +1,59 @@
-export const command = ['language', 'lingua', 'lang'];
+import fs from 'fs';
 
-export async function exec(conn, msg, { jid, sender, args, db }) {
-    const isOwner = global.owners.includes(sender.split('@')[0]);
-    
-    if (!isOwner) {
-        return conn.sendMessage(jid, { text: "❌ Access Denied." }, { quoted: msg });
-    }
+export const command = ['lang', 'lingua', 'setlang'];
 
+export async function exec(conn, msg, { jid, L, db, sender, args }) {
+    const prefix = global.prefix || "?";
+    const name = msg.pushName || "Utente";
+    const userNumber = sender.split('@')[0];
     const newLang = args[0]?.toLowerCase();
-    if (newLang === 'it' || newLang === 'en') {
-        if (!db.settings) db.settings = {};
+
+    if (['it', 'en', 'es'].includes(newLang)) {
         db.settings.lang = newLang;
-        
-        // Risposta dinamica in base alla nuova lingua
-        const text = newLang === 'it' ? "✅ Lingua impostata su: Italiano" : "✅ Language set to: English";
-        await conn.sendMessage(jid, { text }, { quoted: msg });
-    } else {
-        await conn.sendMessage(jid, { text: "❓ Usage: /lang it OR /lang en" }, { quoted: msg });
+        // Forza scrittura immediata
+        fs.writeFileSync('./database.json', JSON.stringify(db, null, 2));
+
+        const confirm = {
+            it: "✅ Lingua impostata: Italiano",
+            en: "✅ Language set: English",
+            es: "✅ Idioma configurado: Español"
+        };
+        return conn.sendMessage(jid, { text: confirm[newLang] }, { quoted: msg });
     }
+
+    const sections = [{
+        title: "🌐 LANGUAGE",
+        rows: [
+            { title: "🇮🇹 Italiano", id: `${prefix}lang it` },
+            { title: "🇺🇸 English", id: `${prefix}lang en` },
+            { title: "🇪🇸 Español", id: `${prefix}lang es` }
+        ]
+    }];
+
+    const listMessage = {
+        interactiveMessage: {
+            body: { text: "Select language / Seleziona lingua" },
+            header: { title: "SET LANGUAGE", hasVideoMessage: false },
+            nativeFlowMessage: {
+                buttons: [{
+                    name: "single_select",
+                    buttonParamsJson: JSON.stringify({
+                        title: "Select Language",
+                        sections: sections
+                    })
+                }]
+            },
+            contextInfo: {
+                quotedMessage: {
+                    contactMessage: {
+                        displayName: name,
+                        vcard: `BEGIN:VCARD\nVERSION:3.0\nN:;${name};;;\nFN:${name}\nitem1.TEL;waid=${userNumber}:${userNumber}\nEND:VCARD`
+                    }
+                },
+                participant: sender
+            }
+        }
+    };
+
+    await conn.relayMessage(jid, { viewOnceMessage: { message: listMessage } }, {});
 }
