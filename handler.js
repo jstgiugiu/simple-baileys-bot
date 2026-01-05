@@ -13,14 +13,12 @@ export default async function handler(conn, m) {
     const msg = m.messages[0];
     if (!msg.message || msg.key.fromMe) return;
 
-    // Recuperiamo device e body processati da print.js
     const { device, body } = await printMessage(conn, m);
 
     const jid = msg.key.remoteJid;
     const sender = (msg.key.participant || jid);
     const prefix = global.prefix || "?";
 
-    // DATABASE
     let db = { users: {}, settings: { lang: global.defaultLang || 'en' } };
     if (fs.existsSync(dbPath)) {
         try { db = JSON.parse(fs.readFileSync(dbPath, 'utf-8')); } catch (e) { }

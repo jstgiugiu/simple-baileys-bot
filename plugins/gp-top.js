@@ -1,4 +1,6 @@
-export const command = ['topgp', 'topgruppi'];
+// Groups Leaderboard
+
+export const command = ['topgp'];
 
 export async function exec(conn, msg, { jid, db }) {
     // Filtra solo i gruppi (@g.us)

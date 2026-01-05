@@ -1,7 +1,8 @@
+// users leaderboard
+
 export const command = ['topusr', 'toputenti'];
 
 export async function exec(conn, msg, { jid, db }) {
-    // Filtra solo gli utenti reali (@s.whatsapp.net)
     let top = Object.entries(db.users)
         .filter(([id]) => id.endsWith('@s.whatsapp.net'))
         .sort((a, b) => b[1].count - a[1].count)

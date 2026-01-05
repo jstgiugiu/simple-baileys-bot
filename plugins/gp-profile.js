@@ -1,3 +1,5 @@
+// Group Profile
+
 export const command = ['infogp', 'infogruppo'];
 export async function exec(conn, msg, { jid, db }) {
     if (!jid.endsWith('@g.us')) return conn.sendMessage(jid, { text: "Solo per gruppi!" }, { quoted: msg });

@@ -1,10 +1,10 @@
+// has to be fixxed. 
+
 export const command = ['archall', 'archivia'];
 
 export async function exec(conn, msg, { jid, sender, L }) {
-    // Estraiamo il numero pulito per il controllo
     const senderNumber = sender.split('@')[0];
     
-    // Controllo sicurezza: global.owners deve essere un array (definito in config.js)
     const isOwner = Array.isArray(global.owners) && global.owners.includes(senderNumber);
 
     if (!isOwner) {

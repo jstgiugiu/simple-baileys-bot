@@ -1,3 +1,5 @@
+// main menu
+
 export const command = ['menu', 'help', '17'];
 
 export async function exec(conn, msg, { jid, L, sender, device, args }) {

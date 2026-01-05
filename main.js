@@ -22,9 +22,9 @@ async function startBot() {
     console.log(chalk.cyan("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"));
 
     const watcher = chokidar.watch(['./plugins', './lib'], { ignored: /^\./, persistent: true, ignoreInitial: true });
-    watcher.on('add', path => console.warn(chalk.yellow(`[WATCHER] 🟢 Nuovo: ${path}`)));
-    watcher.on('change', path => console.warn(chalk.cyan(`[WATCHER] 🔄 Modificato: ${path}`)));
-    watcher.on('unlink', path => console.warn(chalk.red(`[WATCHER] 🗑️  Rimosso: ${path}`)));
+    watcher.on('add', path => console.warn(chalk.green(`[🟢 NEW]: ${path}`)));
+    watcher.on('change', path => console.warn(chalk.yellow(`[🔄 EDIT]: ${path}`)));
+    watcher.on('unlink', path => console.warn(chalk.red(`[🗑️ DELETED] ${path}`)));
 
     const { state, saveCreds } = await useMultiFileAuthState('session');
     const conn = makeWASocket({
@@ -42,7 +42,7 @@ async function startBot() {
 
     conn.ev.on('connection.update', (update) => {
         const { connection, lastDisconnect, qr } = update;
-        if (qr) console.log(chalk.magenta("[QR]") + " Scansiona ora.");
+        if (qr) console.log(chalk.magenta("[QR]") + "PAIR BOT:");
         if (connection === 'close') {
             const reason = lastDisconnect.error?.output?.statusCode;
             if (reason !== DisconnectReason.loggedOut) startBot();

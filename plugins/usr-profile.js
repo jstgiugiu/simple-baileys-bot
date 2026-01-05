@@ -1,3 +1,5 @@
+// user profile
+
 export const command = ['usr-info', 'profilo', 'profile'];
 
 export async function exec(conn, msg, { jid, sender, db, L }) {

@@ -1,3 +1,5 @@
+// menu for changing languages. 
+
 import fs from 'fs';
 
 export const command = ['lang', 'lingua', 'setlang'];
@@ -8,7 +10,6 @@ export async function exec(conn, msg, { jid, L, db, sender, args, device }) {
     const userNumber = sender.split('@')[0];
     const newLang = args[0]?.toLowerCase();
 
-    // Cambio lingua immediato
     if (['it', 'en', 'es'].includes(newLang)) {
         db.settings.lang = newLang;
         fs.writeFileSync('./database.json', JSON.stringify(db, null, 2));
@@ -24,14 +25,12 @@ export async function exec(conn, msg, { jid, L, db, sender, args, device }) {
     let buttons = [];
 
     if (device === 'ios' || device === 'web') {
-        // Bottoni diretti per iPhone
         buttons = [
             { name: "quick_reply", buttonParamsJson: JSON.stringify({ display_text: "🇮🇹 IT", id: `${prefix}lang it` }) },
             { name: "quick_reply", buttonParamsJson: JSON.stringify({ display_text: "🇺🇸 EN", id: `${prefix}lang en` }) },
             { name: "quick_reply", buttonParamsJson: JSON.stringify({ display_text: "🇪🇸 ES", id: `${prefix}lang es` }) }
         ];
     } else {
-        // Lista per Android
         const sections = [{
             title: "🌐 LANGUAGE",
             rows: [
