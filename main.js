@@ -18,7 +18,7 @@ async function startBot() {
     console.clear();
     console.log(gradient(["#00FFFF", "#0080FF", "#0040FF"])(logo));
     console.log(chalk.cyan("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"));
-    console.log(chalk.bold.white(` 🚀 17lb ONLINE | Creatore: github.com/jstgiugiu `));
+    console.log(chalk.bold.white(` 🚀 17lb ONLINE | Made by: github.com/jstgiugiu `));
     console.log(chalk.cyan("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"));
 
     const watcher = chokidar.watch(['./plugins', './lib'], { ignored: /^\./, persistent: true, ignoreInitial: true });
@@ -31,7 +31,7 @@ async function startBot() {
         logger: pino({ level: 'silent' }),
         auth: state,
         printQRInTerminal: true,
-        browser: ["17lb", "Safari", "3.0.0"]
+        browser: ["17lb", "Chrome", "3.0.0"]
     });
 
     conn.ev.on('creds.update', saveCreds);

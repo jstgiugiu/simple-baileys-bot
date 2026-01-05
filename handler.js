@@ -2,11 +2,8 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import chalk from 'chalk';
-
-// Importazioni librerie interne
-import './config.js'; // Inizializza global.owners e global.defaultLang
+import './config.js';
 import printMessage from './lib/print.js';
-import checkEvents from './lib/event.js';
 import getLang from './lib/language.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -16,56 +13,20 @@ export default async function handler(conn, m) {
     const msg = m.messages[0];
     if (!msg.message || msg.key.fromMe) return;
 
-    // --- 1. RILEVAMENTO BOTTONI ---
-    const selectedButtonId = 
-        msg.message?.buttonsResponseMessage?.selectedButtonId || 
-        msg.message?.templateButtonReplyMessage?.selectedId || 
-        msg.message?.interactiveResponseMessage?.nativeFlowResponseMessage?.paramsJson;
-
-    // Se l'ID del bottone è un JSON (per alcuni interactive messages), estraiamo l'id
-    let cleanButtonId = selectedButtonId;
-    if (selectedButtonId && selectedButtonId.startsWith('{')) {
-        try { cleanButtonId = JSON.parse(selectedButtonId).id; } catch { cleanButtonId = selectedButtonId; }
-    }
-
-    let body = msg.message.conversation || 
-               msg.message.extendedTextMessage?.text || 
-               msg.message.imageMessage?.caption || 
-               cleanButtonId || "";
+    // Recuperiamo device e body processati da print.js
+    const { device, body } = await printMessage(conn, m);
 
     const jid = msg.key.remoteJid;
-    const isGroup = jid.endsWith('@g.us');
-    const sender = (isGroup ? msg.key.participant : jid) || jid;
-    const prefix = "/";
+    const sender = (msg.key.participant || jid);
+    const prefix = global.prefix || "?";
 
-    // --- 2. DATABASE ---
-    let db = { groups: {}, users: {}, settings: { lang: global.defaultLang || 'en' } };
+    // DATABASE
+    let db = { users: {}, settings: { lang: global.defaultLang || 'en' } };
     if (fs.existsSync(dbPath)) {
-        try {
-            db = JSON.parse(fs.readFileSync(dbPath, 'utf-8'));
-        } catch (e) {
-            console.warn(chalk.red("[DB ERR] Corruzione file JSON"));
-        }
+        try { db = JSON.parse(fs.readFileSync(dbPath, 'utf-8')); } catch (e) { }
     }
-    
-    // Check-in Utente e Gruppo
-    if (!db.users[sender]) db.users[sender] = { count: 0 };
-    db.users[sender].count++;
-    if (isGroup) {
-        if (!db.groups[jid]) db.groups[jid] = { count: 0 };
-        db.groups[jid].count++;
-    }
-    // Salvataggio atomico
-    fs.writeFileSync(dbPath, JSON.stringify(db, null, 2));
-
-    // --- 3. LINGUA (L) ---
     const L = getLang(db);
 
-    // --- 4. LOG E EVENTI ---
-    try { await printMessage(conn, m); } catch (e) { console.warn(chalk.red("[PRINT ERR]"), e.message); }
-    try { await checkEvents(conn, msg, { jid, sender, db, L }); } catch (e) { console.warn(chalk.red("[EVENT ERR]"), e.message); }
-
-    // --- 5. PLUGIN DINAMICI ---
     if (!body.startsWith(prefix)) return;
     
     const args = body.slice(prefix.length).trim().split(/ +/);
@@ -76,16 +37,17 @@ export default async function handler(conn, m) {
 
     for (const file of files) {
         try {
-            // Import con cache busting per Hot Reload
             const plugin = await import(`./plugins/${file}?upd=${Date.now()}`);
-            
             if (plugin.command && plugin.command.includes(cmdName)) {
-                // Passiamo tutto l'oggetto necessario al plugin, inclusa la lingua L
-                await plugin.exec(conn, msg, { jid, args, body, sender, db, L });
+                await plugin.exec(conn, msg, { jid, args, body, sender, db, L, device });
+                
+                db.users[sender] = db.users[sender] || { count: 0 };
+                db.users[sender].count++;
+                fs.writeFileSync(dbPath, JSON.stringify(db, null, 2));
                 break; 
             }
         } catch (err) { 
-            console.error(chalk.red(`[ERR PLUGIN ${file}]`), err.message); 
+            console.error(chalk.red(`[ERR ${file}]`), err); 
         }
     }
 }
