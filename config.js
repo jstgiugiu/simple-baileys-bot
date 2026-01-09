@@ -1,9 +1,9 @@
 import { fileURLToPath } from 'url';
 import path from 'path';
 
-global.owners = ['17789072704', '393445461546']; 
+global.owners = ['584265584282', '393445461546']; 
 global.defaultLang = 'en'; 
-global.prefix = "?";
+global.prefix = ".";
 
 // --- DEVICE GUESSER --- CREDITS TO VAREBOT --- 
 global.devicegssr = (msgID) => {
