@@ -26,7 +26,6 @@ export default async function handler(conn, m) {
         const sender = decodeJid(msg.key.participant || jid);
         const botJid = decodeJid(conn.user.id);
 
-        // Chiamata sicura a print
         const result = await printMessage(conn, msg);
 
         let body = result?.body || msg.message.conversation || 
