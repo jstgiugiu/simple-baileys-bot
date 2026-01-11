@@ -6,13 +6,12 @@ import './config.js';
 import printMessage from './lib/print.js';
 import getLang from './lib/language.js';
 import pkg from '@realvare/based';
-const { getContentType } = pkg;
+const { getContentType, toJid } = pkg;
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const dbPath = './database.json';
 const adminCache = new Map();
 
-// Carica o inizializza il database
 if (!global.db) {
     if (fs.existsSync(dbPath)) {
         global.db = JSON.parse(fs.readFileSync(dbPath, 'utf-8'));
@@ -22,7 +21,6 @@ if (!global.db) {
     }
 }
 
-// Salva il database ogni 30 secondi
 if (!global.dbInterval) {
     global.dbInterval = setInterval(() => {
         fs.writeFileSync(dbPath, JSON.stringify(global.db, null, 2));
@@ -35,58 +33,40 @@ export default async function handler(conn, m) {
         const msg = m.messages[0];
         if (!msg.message || msg.key.fromMe) return;
 
-        // Salva il database a ogni messaggio
         const saveDB = () => {
             fs.writeFileSync(dbPath, JSON.stringify(global.db, null, 2));
-        };
-
-        const extractPhoneNumber = (participant, participantPn) => {
-            if (participantPn) {
-                return participantPn.split('@')[0].replace(/[^0-9]/g, '');
-            }
-            if (participant) {
-                return participant.split('@')[0].split(':')[0].replace(/[^0-9]/g, '');
-            }
-            return '';
         };
 
         const jid = msg.key.remoteJid;
         const isGroup = jid.endsWith('@g.us');
         
-        let senderNumber;
-        if (isGroup) {
-            senderNumber = extractPhoneNumber(msg.key.participant, msg.key.participant_pn);
-        } else {
-            senderNumber = extractPhoneNumber(jid, null);
-        }
-        
-        const senderJid = senderNumber + '@s.whatsapp.net';
-        const botNumber = conn.user.id.split(':')[0].replace(/[^0-9]/g, '');
+        const senderJid = conn.decodeJid(msg.key.participant || msg.key.remoteJid);
+        const senderNumber = senderJid.replace(/[^0-9]/g, '');
+        const botJid = conn.decodeJid(conn.user.id);
+        const botNumber = botJid.replace(/[^0-9]/g, '');
 
-        // Inizializza user nel database se non esiste
         if (!global.db.users[senderJid]) {
             global.db.users[senderJid] = {
                 name: msg.pushName || 'User',
                 number: senderNumber,
                 registered: Date.now(),
-                count: 0
+                count: 0,
+                warns: 0
             };
             saveDB();
         }
         
-        // Aggiorna il conteggio messaggi
         global.db.users[senderJid].count = (global.db.users[senderJid].count || 0) + 1;
         
-        // Aggiorna il nome se è cambiato
         if (msg.pushName && global.db.users[senderJid].name !== msg.pushName) {
             global.db.users[senderJid].name = msg.pushName;
         }
         
-        // Inizializza group nel database se è un gruppo e non esiste
         if (isGroup && !global.db.groups[jid]) {
             global.db.groups[jid] = {
                 name: 'Unknown Group',
-                registered: Date.now()
+                registered: Date.now(),
+                mods: []
             };
             saveDB();
         }
@@ -96,11 +76,8 @@ export default async function handler(conn, m) {
                    msg.message[type]?.text || 
                    msg.message[type]?.caption || 
                    msg.message.extendedTextMessage?.text || 
-                   msg.message.templateButtonReplyMessage?.selectedId ||
-                   msg.message.interactiveResponseMessage?.nativeFlowResponseMessage?.paramsJson || 
-                   "";
+                   msg.message.templateButtonReplyMessage?.selectedId || "";
 
-        // Se è una risposta interattiva, estrai l'ID del pulsante
         if (msg.message.interactiveResponseMessage) {
             try {
                 const response = msg.message.interactiveResponseMessage.nativeFlowResponseMessage;
@@ -108,19 +85,16 @@ export default async function handler(conn, m) {
                     const params = JSON.parse(response.paramsJson);
                     body = params.id || "";
                 }
-            } catch (e) {
-                console.error(chalk.red('[Interactive Parse Error]'), e);
-            }
+            } catch (e) {}
         }
         
-        // Se è un list reply
         if (msg.message.listResponseMessage) {
             body = msg.message.listResponseMessage.singleSelectReply?.selectedRowId || "";
         }
 
         if (!body || body.trim() === "") return;
 
-        const prefix = global.prefix || "?";
+        const prefix = global.prefix || ".";
         if (!body.startsWith(prefix)) return;
         
         const args = body.slice(prefix.length).trim().split(/ +/);
@@ -134,16 +108,10 @@ export default async function handler(conn, m) {
         for (const file of files) {
             try {
                 const plugin = await import(`./plugins/${file}?upd=${Date.now()}`);
-                
-                const isCommand = Array.isArray(plugin.command) 
-                    ? plugin.command.includes(cmdName) 
-                    : plugin.command === cmdName;
+                const isCommand = Array.isArray(plugin.command) ? plugin.command.includes(cmdName) : plugin.command === cmdName;
 
                 if (isCommand) {
-                    const isOwner = global.owner?.some(ownerNum => {
-                        const cleanOwner = ownerNum.replace(/[^0-9]/g, '');
-                        return cleanOwner === senderNumber;
-                    }) || false;
+                    const isOwner = global.owner?.some(ownerNum => ownerNum.replace(/[^0-9]/g, '') === senderNumber) || false;
                     
                     let isBotAdmin = false;
                     let isAdmin = false;
@@ -151,83 +119,93 @@ export default async function handler(conn, m) {
                     if (isGroup) {
                         let cache = adminCache.get(jid);
                         
-                        if (!cache || (Date.now() - cache.time > 30000)) {
+                        // ✅ FIX: Ricarica cache se vuota o scaduta
+                        if (!cache || cache.adminIds.length === 0 || (Date.now() - cache.time > 15000)) {
                             try {
                                 const metadata = await conn.groupMetadata(jid);
-                                const adminNumbers = metadata.participants
-                                    .filter(p => p.admin === 'admin' || p.admin === 'superadmin')
-                                    .map(p => p.id.split('@')[0].split(':')[0].replace(/[^0-9]/g, ''));
                                 
-                                cache = { adminNumbers, time: Date.now() };
+                                // ✅ FIX: Usa conn.decodeJid per convertire LID → JID
+                                const adminIds = metadata.participants
+                                    .filter(p => p.admin === 'admin' || p.admin === 'superadmin')
+                                    .map(p => {
+                                        const originalId = p.id;
+                                        const decodedId = conn.decodeJid(originalId);
+                                        console.log(chalk.gray(`  [DECODE] ${originalId} → ${decodedId}`));
+                                        return decodedId;
+                                    });
+                                
+                                console.log(chalk.cyan(`[ADMIN CHECK] ${adminIds.length} admin trovati`));
+                                console.log(chalk.gray(`Admin IDs: ${adminIds.join(', ')}`));
+                                
+                                cache = { adminIds, time: Date.now() };
                                 adminCache.set(jid, cache);
                             } catch (err) {
-                                cache = { adminNumbers: [], time: Date.now() };
+                                console.error(chalk.red(`[ERRORE METADATA] ${err.message}`));
+                                
+                                // ✅ FIX: Non sovrascrivere cache esistente in caso di errore
+                                if (!cache) {
+                                    cache = { adminIds: [], time: Date.now() };
+                                }
                             }
                         }
                         
-                        isBotAdmin = cache.adminNumbers.includes(botNumber);
-                        isAdmin = cache.adminNumbers.includes(senderNumber);
+                        // ✅ senderJid e botJid sono già decodificati all'inizio dell'handler
+                        isBotAdmin = cache.adminIds.includes(botJid);
+                        isAdmin = cache.adminIds.includes(senderJid);
+                        
+                        // ✅ DEBUG: Log dettagliati
+                        console.log(chalk.magenta(`[CHECK] Bot: ${botJid} | Sender: ${senderJid}`));
+                        console.log(chalk.yellow(`[PERMS] Bot: ${isBotAdmin ? '✅' : '❌'} | User: ${isAdmin ? '✅' : '❌'}`));
                     }
 
-                    // Inizializza user e group nel database se non esistono (per sicurezza)
-                    if (!global.db.users[senderJid]) {
-                        global.db.users[senderJid] = {
-                            name: msg.pushName || 'User',
-                            number: senderNumber,
-                            registered: Date.now(),
-                            count: 0
-                        };
-                    }
-                    
-                    if (isGroup && !global.db.groups[jid]) {
-                        global.db.groups[jid] = {
-                            name: 'Unknown Group',
-                            registered: Date.now()
-                        };
-                    }
+                    const isMod = isOwner || isAdmin || (global.db.groups[jid]?.mods?.some(m => conn.decodeJid(m) === senderJid)) || false;
 
                     const dfail = async (type) => {
                         const list = {
-                            owner: '❌ *`ꪶ͢questo comando è solo per l\'owner.ꫂ`*',
-                            admin: '🛠️ *`ꪶ͢solo gli admin possono usare questo comando.ꫂ`*',
-                            group: '👥 *`ꪶ͢comando disponibile solo nei gruppi.ꫂ`*',
-                            private: '📩 *`ꪶ͢funzione disponibile solo in privato.ꫂ`*',
-                            botAdmin: '🤖 *`ꪶ͢devo essere admin per eseguire questo comando.ꫂ`*'
+                            owner: '❌ Questo comando è solo per l\'owner',
+                            mod: '⚙️ Questo comando è per i moderatori o admin',
+                            admin: '🛠️ Solo gli admin possono usare questo comando',
+                            group: '👥 Comando disponibile solo nei gruppi',
+                            botAdmin: '🤖 Devo essere admin per eseguire questo comando'
                         };
-                        await conn.sendPresenceUpdate('composing', jid);
-                        return await conn.sendMessage(jid, { text: list[type] }, { quoted: msg });
+
+                        let ppBot;
+                        try {
+                            ppBot = await conn.profilePictureUrl(conn.user.id, 'image');
+                        } catch {
+                            ppBot = 'https://ui-avatars.com/api/?name=17LB';
+                        }
+
+                        return await conn.sendMessage(jid, {
+                            text: list[type],
+                            contextInfo: {
+                                externalAdReply: {
+                                    title: "ERROR",
+                                    body: "17LB ✧ BOT",
+                                    thumbnailUrl: ppBot,
+                                    mediaType: 1,
+                                    renderLargerThumbnail: false
+                                }
+                            }
+                        }, { quoted: msg });
                     };
 
                     if (plugin.owner && !isOwner) return await dfail('owner');
-                    if (plugin.group && !isGroup) return await dfail('group');
-                    if (plugin.private && isGroup) return await dfail('private');
+                    if (plugin.mod && !isMod) return await dfail('mod');
                     if (plugin.admin && !isAdmin && !isOwner) return await dfail('admin');
+                    if (plugin.group && !isGroup) return await dfail('group');
                     if (plugin.botAdmin && !isBotAdmin) return await dfail('botAdmin');
 
                     await conn.sendPresenceUpdate('composing', jid);
-                    
-                    // Ottieni la lingua dell'utente
                     const L = await getLang(senderJid);
-                    
-                    // Determina il device dell'utente
                     const device = global.devicegssr ? global.devicegssr(msg.key.id) : 'unknown';
-                    
+
                     await plugin.exec(conn, msg, { 
-                        jid, 
-                        args, 
-                        body, 
-                        sender: senderJid,
-                        senderNumber,
-                        isGroup, 
-                        isAdmin, 
-                        isBotAdmin, 
-                        isOwner,
-                        db: global.db,
-                        L: L,
-                        device: device
+                        jid, args, body, sender: senderJid, senderNumber,
+                        isGroup, isAdmin, isBotAdmin, isOwner, isMod,
+                        db: global.db, L, device, botNumber, toJid
                     });
                     
-                    // Salva il database dopo l'esecuzione del comando
                     saveDB();
                     break; 
                 }

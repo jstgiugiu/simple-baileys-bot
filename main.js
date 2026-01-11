@@ -1,5 +1,5 @@
 import pkg from "@realvare/based";
-const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion, delay } = pkg;
+const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion, delay, jidNormalizedUser } = pkg;
 import pino from "pino";
 import chalk from "chalk";
 import chokidar from "chokidar";
@@ -52,6 +52,29 @@ async function startBot() {
         browser: ["17lb", "Chrome", "3.0.0"]
     });
 
+    // ✅ FIX: decodeJid migliorato per gestire TUTTI i casi LID
+    conn.decodeJid = (jid) => {
+        if (!jid) return jid;
+        let decoded = jid;
+        
+        // Step 1: Gestisci formati con :numero@
+        if (/:\d+@/gi.test(jid)) {
+            decoded = jidNormalizedUser(jid);
+        }
+        
+        // Step 2: Se è un oggetto, estrai user@server
+        if (typeof decoded === 'object' && decoded.user && decoded.server) {
+            decoded = `${decoded.user}@${decoded.server}`;
+        }
+        
+        // Step 3: ✅ CRITICO - Converti @lid in @s.whatsapp.net
+        if (typeof decoded === 'string' && decoded.endsWith('@lid')) {
+            decoded = decoded.replace('@lid', '@s.whatsapp.net');
+        }
+        
+        return decoded;
+    };
+
     if (!sessionExists && method === '2' && !conn.authState.creds.registered) {
         let phoneNumber = await question(chalk.magenta("\nInserisci il numero (es. 39333xxx): "));
         phoneNumber = phoneNumber.replace(/[^0-9]/g, '');
@@ -98,6 +121,10 @@ async function startBot() {
                 startBot();
             }
         }
+    });
+
+    conn.ev.on('group-participants.update', async (anu) => {
+        console.log(chalk.magenta("[GROUP EVENT] ") + anu.action + " in " + anu.id);
     });
 
     conn.ev.on('messages.upsert', async (m) => {
