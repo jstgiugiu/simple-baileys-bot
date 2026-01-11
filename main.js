@@ -46,7 +46,7 @@ async function startBot() {
 
     const conn = makeWASocket({
         version,
-        logger: pino({ level: 'debug' }),
+        logger: pino({ level: 'silent' }),
         auth: state,
         printQRInTerminal: false,
         browser: ["17lb", "Chrome", "3.0.0"]

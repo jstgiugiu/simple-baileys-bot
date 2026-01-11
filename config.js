@@ -1,7 +1,7 @@
 import { fileURLToPath } from 'url';
 import path from 'path';
 
-global.owners = ['584265584282', '393445461546']; 
+global.owner = ['584265584282', '393445461546']; 
 global.defaultLang = 'en'; 
 global.prefix = ".";
 
